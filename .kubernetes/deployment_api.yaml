@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coffee-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: coffee-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: coffee-api
+    spec:
+      containers:
+      - name: coffee-api
+        image: ghcr.io/dmitryd435/coffee-api:TAG
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5000
+        env:
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_DB
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
+        - name: SQLALCHEMY_DATABASE_URI
+          value: postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: 5000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      imagePullSecrets:
+      - name: ghcr-secret
+
+

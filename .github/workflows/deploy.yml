@@ -1,0 +1,70 @@
+name: Deploy to Minikube
+
+on:
+  push:
+    branches:
+      - env/staging
+      - main
+
+jobs:
+  build:
+    runs-on: [self-hosted, Linux, X64]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v2
+      with:
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.TOKEN }}
+
+
+    - name: Set up Docker tag
+      run: echo "TAG=$(echo $GITHUB_SHA | head -c 8)" >> $GITHUB_ENV
+
+    - name: Build Inventory Image
+      run: |
+        docker build . --tag ghcr.io/${{ github.repository_owner }}/coffee-api:$TAG
+        docker push ghcr.io/${{ github.repository_owner }}/coffee-api:$TAG
+
+    - name: Check Minikube status
+      run: |
+        minikube status
+  
+    - name: Use Minikube context
+      run: |
+        kubectl config use-context minikube
+
+    - name: Change var passwrd
+      run: |
+        cd .kubernetes
+        sed -i "s|POSTGRES_DB_IN|${{ secrets.DB_NAME }}|g" postgres-secret.yaml
+        sed -i "s|POSTGRES_USER_IN|${{ secrets.DB_USER }}|g" postgres-secret.yaml
+        sed -i "s|POSTGRES_PASSWORD_IN|${{ secrets.DB_PASSWORD }}|g" postgres-secret.yaml
+        sed -i "s|TAG|$TAG|g" deployment_api.yaml
+    - name: Deploy to Minikube
+      run: |
+        kubectl apply -f .kubernetes --validate=false
+
+    - name: Check API
+      run: |
+        curl -X POST http://192.168.49.2:30001/buy_coffee -H "Content-Type: application/json" -d '{"payment_amount": 1.50}'
+        curl -X POST http://192.168.49.2:30001/buy_coffee -H "Content-Type: application/json" -d '{"payment_amount": 2.50}'
+        curl -X POST http://192.168.49.2:30001/buy_coffee -H "Content-Type: application/json" -d '{"payment_amount": 3.50}'
+
+
+
+        
+
+
+        
+
+
+
+
